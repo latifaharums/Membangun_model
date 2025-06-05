@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import mlflow
 import mlflow.sklearn
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV, train_test_split # Tambahkan train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from dotenv import load_dotenv
@@ -30,7 +30,13 @@ def modeling_with_tuning(X_train, X_val, y_train, y_val):
         "solver": ["liblinear", "lbfgs"] 
     }
 
-    model = LogisticRegression(max_iter=1000, random_state=42)
+    model = RandomForestClassifier(random_state=42)
+    param_grid = {
+    'n_estimators': [100, 150, 200],
+    'max_depth': [10, 20, None],
+    'min_samples_leaf': [1, 2, 4],
+    'class_weight': ['balanced'] # Langsung tangani imbalance di sini!
+}
     
     grid_search = GridSearchCV(model, param_grid, cv=3, scoring="accuracy", n_jobs=-1, verbose=1)
     grid_search.fit(X_train, y_train)
