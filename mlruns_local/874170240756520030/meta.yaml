@@ -1,0 +1,6 @@
+artifact_location: file:///C:/Users/LENOVO/Downloads/SMSL_LatifahArumS/Membangun_model/mlruns_local/874170240756520030
+creation_time: 1749113527295
+experiment_id: '874170240756520030'
+last_update_time: 1749113527295
+lifecycle_stage: active
+name: WineQuality_RandomForest_Tuning_Local

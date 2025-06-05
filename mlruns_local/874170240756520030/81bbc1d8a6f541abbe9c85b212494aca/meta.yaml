@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/LENOVO/Downloads/SMSL_LatifahArumS/Membangun_model/mlruns_local/874170240756520030/81bbc1d8a6f541abbe9c85b212494aca/artifacts
+end_time: 1749113558154
+entry_point_name: ''
+experiment_id: '874170240756520030'
+lifecycle_stage: active
+run_id: 81bbc1d8a6f541abbe9c85b212494aca
+run_name: RandomForest_Tuning_Local
+run_uuid: 81bbc1d8a6f541abbe9c85b212494aca
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1749113528244
+status: 3
+tags: []
+user_id: latifaharums
