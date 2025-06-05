@@ -3,61 +3,86 @@ import pandas as pd
 import mlflow
 import mlflow.sklearn
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, train_test_split # Tambahkan train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from dotenv import load_dotenv
-from dagshub import dagshub_logger
 
-# Load envi
+# Load Env
 load_dotenv()
-username = os.getenv("DAGSHUB_USERNAME")
-token = os.getenv("DAGSHUB_TOKEN")
 
-# Setup MLflow ke DagsHub
-os.environ["MLFLOW_TRACKING_USERNAME"] = username
-os.environ["MLFLOW_TRACKING_PASSWORD"] = token
-mlflow.set_tracking_uri(f"https://dagshub.com/{username}/Membangun_model.mlflow")
+# Read env
+username = os.getenv("MLFLOW_TRACKING_USERNAME")
+token = os.getenv("MLFLOW_TRACKING_PASSWORD")
+dagshub_repo_name = "Membangun_model" 
+
+# Cek kalau username/token None, agar error lebih jelas
+if username is None or token is None:
+    raise ValueError("MLFLOW_TRACKING_USERNAME atau MLFLOW_TRACKING_PASSWORD tidak ditemukan di .env")
+
+# Set URI MLflow untuk DagsHub
+mlflow.set_tracking_uri(f"https://dagshub.com/{username}/{dagshub_repo_name}.mlflow")
 mlflow.set_experiment("WineQuality_LogisticRegression_Tuning")
 
-def modeling_with_tuning(X_train_path, X_val_path, y_train_path, y_val_path):
-    # Load data hasil split
-    X_train = pd.read_csv(X_train_path)
-    X_val = pd.read_csv(X_val_path)
-    y_train = pd.read_csv(y_train_path).squeeze()
-    y_val = pd.read_csv(y_val_path).squeeze()
-
+def modeling_with_tuning(X_train, X_val, y_train, y_val):
     # Grid search parameter Logistic Regression
     param_grid = {
         "C": [0.01, 0.1, 1.0, 10],
-        "penalty": ["l2"],
-        "solver": ["liblinear", "lbfgs"]
+        "penalty": ["l2"], 
+        "solver": ["liblinear", "lbfgs"] 
     }
 
     model = LogisticRegression(max_iter=1000, random_state=42)
-    grid_search = GridSearchCV(model, param_grid, cv=3, scoring="accuracy", n_jobs=-1)
+    
+    grid_search = GridSearchCV(model, param_grid, cv=3, scoring="accuracy", n_jobs=-1, verbose=1)
     grid_search.fit(X_train, y_train)
 
     best_model = grid_search.best_estimator_
     y_pred = best_model.predict(X_val)
     accuracy = accuracy_score(y_val, y_pred)
-    report = classification_report(y_val, y_pred, output_dict=True)
+    report = classification_report(y_val, y_pred, output_dict=True, zero_division=0)
 
+
+    print("Parameter terbaik:", grid_search.best_params_)
     print("Akurasi:", accuracy)
     print("Classification Report:")
-    print(classification_report(y_val, y_pred))
+    print(classification_report(y_val, y_pred, zero_division=0))
+
 
     return best_model, accuracy, report, grid_search.best_params_
 
 if __name__ == "__main__":
-    # Path ke dataset hasil preprocessing
-    X_train_path = "dataset_preprocessing/X_train.csv"
-    X_val_path = "dataset_preprocessing/X_val.csv"
-    y_train_path = "dataset_preprocessing/y_train.csv"
-    y_val_path = "dataset_preprocessing/y_val.csv"
+    data_path = "processed_winequality-red.csv"
+    
+    try:
+        print(f"Mencoba memuat data dari: {data_path}")
+        data = pd.read_csv(data_path)
+        print("Data berhasil dimuat.")
+        print("Kolom data:", data.columns.tolist())
+    except FileNotFoundError:
+        print(f"ERROR: File dataset '{data_path}' tidak ditemukan. Pastikan file tersebut ada di lokasi yang benar.")
+        exit() 
 
-    with mlflow.start_run(run_name="LogReg_Tuning"):
-        model, accuracy, report, best_params = modeling_with_tuning(
-            X_train_path, X_val_path, y_train_path, y_val_path
+    target_column = 'quality' 
+
+    if target_column not in data.columns:
+        print(f"ERROR: Kolom target '{target_column}' tidak ditemukan dalam dataset.")
+        print(f"Kolom yang tersedia adalah: {data.columns.tolist()}")
+        exit()
+
+    X = data.drop(target_column, axis=1)
+    y = data[target_column]
+
+    # Pisahkan data menjadi training dan validation set
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y if y.nunique() > 1 else None)
+
+    print(f"Ukuran X_train: {X_train.shape}")
+    print(f"Ukuran X_val: {X_val.shape}")
+    print(f"Ukuran y_train: {y_train.shape}")
+    print(f"Ukuran y_val: {y_val.shape}")
+
+    with mlflow.start_run(run_name="LogReg_Tuning_SingleFile"):
+        model, accuracy, report_dict, best_params = modeling_with_tuning(
+            X_train, X_val, y_train, y_val
         )
 
         # Log hyperparameter terbaik
@@ -66,15 +91,20 @@ if __name__ == "__main__":
 
         # Log metrik evaluasi
         mlflow.log_metric("accuracy", accuracy)
-        mlflow.log_metric("precision", report["weighted avg"]["precision"])
-        mlflow.log_metric("recall", report["weighted avg"]["recall"])
-        mlflow.log_metric("f1_score", report["weighted avg"]["f1-score"])
+        
+        if "weighted avg" in report_dict:
+            mlflow.log_metric("precision_weighted", report_dict["weighted avg"]["precision"])
+            mlflow.log_metric("recall_weighted", report_dict["weighted avg"]["recall"])
+            mlflow.log_metric("f1_score_weighted", report_dict["weighted avg"]["f1-score"])
+        else:
+            print("WARNING: 'weighted avg' tidak ditemukan di classification_report.")
 
         # Set tag MLflow
         mlflow.set_tag("stage", "tuning")
         mlflow.set_tag("model_type", "LogisticRegression")
+        mlflow.set_tag("data_source", data_path) 
 
         # Log model
         mlflow.sklearn.log_model(model, artifact_path="logreg_best_model")
 
-        print("Tuning selesai dan model berhasil dicatat ke MLflow DagsHub")
+        print(f"Tuning selesai dan model berhasil dicatat ke MLflow DagsHub (Eksperimen: {mlflow.active_run().info.experiment_id}, Run: {mlflow.active_run().info.run_id})")
