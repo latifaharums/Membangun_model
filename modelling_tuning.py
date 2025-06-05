@@ -15,7 +15,6 @@ username = os.getenv("MLFLOW_TRACKING_USERNAME")
 token = os.getenv("MLFLOW_TRACKING_PASSWORD")
 dagshub_repo_name = "Membangun_model" 
 
-# Cek kalau username/token None, agar error lebih jelas
 if username is None or token is None:
     raise ValueError("MLFLOW_TRACKING_USERNAME atau MLFLOW_TRACKING_PASSWORD tidak ditemukan di .env")
 
